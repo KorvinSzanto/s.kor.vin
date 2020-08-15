@@ -17,7 +17,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 (new Dotenv())->usePutenv()->load(__DIR__ . '/../.env');
 
 // Enable debug
-if (getenv('APP_ENV') === 'prod') {
+if (getenv('APP_ENV') !== 'prod') {
     Debug::enable();
 }
 
