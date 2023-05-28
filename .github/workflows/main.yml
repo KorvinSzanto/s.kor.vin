@@ -3,7 +3,7 @@ name: Deploy deno lambda
 on:
   push:
     branches:
-      - deno
+      - deno-lambda
 
 jobs:
   deploy:
