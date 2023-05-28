@@ -1,8 +1,7 @@
+import {APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context} from "https://deno.land/x/lambda@1.32.5/mod.ts";
 import {parse as parseCsv} from "https://deno.land/std@0.177.1/encoding/csv.ts"
 
 type Row = {ID: string, URL: string, Link: string}
-
-const server = Deno.listen({ port: 5135 })
 
 if (typeof Deno.env.get('SHEET') === 'undefined') {
   throw "No sheet URL provided."
@@ -12,6 +11,7 @@ const sheet = Deno.env.get('SHEET') as string
 
 let csv: Row[] = []
 let last = 0
+
 async function getCsv() {
   if (last < (new Date).getTime()) {
     last = (new Date).getTime() + (60 * 1000)
@@ -21,33 +21,31 @@ async function getCsv() {
   return csv
 }
 
-for await (const conn of server) {
-  serveHttp(conn)
-}
+export async function handler(event: APIGatewayProxyEventV2, context: Context): Promise<APIGatewayProxyResultV2> {
+  const host = event.headers.host ?? ''
+  const matches = host.match(/^(.+?)(?:\.s)?\.kor\.vin/i)
+  const subdomain = (matches ? matches[1] : '').toLowerCase()
 
-async function serveHttp(conn: Deno.Conn) {
-  const httpConn = Deno.serveHttp(conn)
-  for await (const requestEvent of httpConn) {
-    const host = requestEvent.request.headers.get('host') ?? ''
-    const matches = host.match(/^(.+?)(?:\.s)?\.kor\.vin/i)
-    const subdomain = (matches ? matches[1] : '').toLowerCase()
+  let redirect = null
+  for (const {ID, URL} of await getCsv()) {
+    if (ID.toLowerCase() === subdomain) {
+      redirect = URL
+    }
+  }
 
-    let redirect = null
-    for (const {ID, URL} of await getCsv()) {
-      if (ID.toLowerCase() === subdomain) {
-        redirect = URL
+  if (redirect) {
+    return {
+      statusCode: 302,
+      body: `Redirecting to <a href='${redirect}'>${redirect}</a>`,
+      headers: {
+        'Content-Type': 'text/html',
+        'Location': redirect
       }
     }
-
-    if (redirect) {
-      requestEvent.respondWith(new Response(null, {
-        status: 302,
-        headers: [
-          ['Location', redirect]
-        ]
-      }))
-    } else {
-      requestEvent.respondWith(new Response("Redirect not found.", {status: 404}))
-    }
+  }
+  
+  return {
+    statusCode: 404,
+    body: "Redirect not found."
   }
 }
